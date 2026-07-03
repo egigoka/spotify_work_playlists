@@ -81,7 +81,7 @@ def get_playlist(name, playlists):
     return None
 
 
-def get_playlist_track_uris(playlist_uri):
+def get_playlist_track_uris(playlist_uri, progress_label=None):
     results = sp.playlist_items(playlist_id=playlist_uri, limit=100, offset=0)
     uris = []
     while results:
@@ -89,6 +89,8 @@ def get_playlist_track_uris(playlist_uri):
             track = item['track']
             if track:
                 uris.append(track['uri'])
+        if progress_label:
+            Print.rewrite(f"fetched {len(uris)} {progress_label}")
         results = sp.next(results) if results['next'] else None
     return uris
 
@@ -106,6 +108,7 @@ def get_all_liked_uris():
                 uris.append(track['uri'])
         offset += len(results['items'])
         Print.rewrite(f"fetched {offset} liked songs")
+    print()
     return uris
 
 
@@ -117,9 +120,11 @@ def flush_batch(batch, batch_start_pos):
 
 playlists = get_all_playlists()
 target_playlist = get_playlist("работа?", playlists)
+work_playlist = get_playlist("работа", playlists)
+not_work_playlist = get_playlist("!работа", playlists)
 excluded_playlists = [
-    get_playlist("работа", playlists),
-    get_playlist("!работа", playlists),
+    work_playlist,
+    not_work_playlist,
 ]
 
 if not target_playlist:
@@ -133,14 +138,36 @@ selected_playlist = target_playlist['uri']
 
 excluded_track_uris = set()
 excluded_counts = {}
+excluded_playlist_uris = {}
+
+if work_playlist and not_work_playlist:
+    work_uris = get_playlist_track_uris(work_playlist['uri'])
+    not_work_uris = get_playlist_track_uris(not_work_playlist['uri'])
+    duplicate_uris = set(work_uris) & set(not_work_uris)
+
+    if duplicate_uris:
+        duplicate_uris = list(duplicate_uris)
+        Print.colored(f"removing {len(duplicate_uris)} songs from {work_playlist['name']}", "yellow")
+        for i in range(0, len(duplicate_uris), 100):
+            batch = duplicate_uris[i:i + 100]
+            sp.playlist_remove_all_occurrences_of_items(work_playlist['uri'], batch)
+            Print.rewrite(f"removed {min(i + 100, len(duplicate_uris))}/{len(duplicate_uris)}")
+
+        work_uris = [uri for uri in work_uris if uri not in set(duplicate_uris)]
+
+    excluded_playlist_uris[work_playlist['uri']] = work_uris
+    excluded_playlist_uris[not_work_playlist['uri']] = not_work_uris
+
 for playlist in excluded_playlists:
-    uris = get_playlist_track_uris(playlist['uri'])
+    uris = excluded_playlist_uris.get(playlist['uri'])
+    if uris is None:
+        uris = get_playlist_track_uris(playlist['uri'])
     excluded_track_uris.update(uris)
     excluded_counts[playlist['name']] = len(uris)
 Print.colored(f"excluded {len(excluded_track_uris)} songs from {len(excluded_playlists)} playlists", "yellow")
 
 Print.colored("fetching current playlist...", "cyan")
-current_uris = get_playlist_track_uris(selected_playlist)
+current_uris = get_playlist_track_uris(selected_playlist, "current playlist songs")
 current_set = set(current_uris)
 
 Print.colored("fetching liked songs...", "cyan")
