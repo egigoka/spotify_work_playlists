@@ -1,4 +1,6 @@
+import os
 import spotipy
+from spotipy.cache_handler import CacheFileHandler
 from commands import *
 
 password = Str.input_pass()
@@ -13,9 +15,12 @@ client_secret = Str.decrypt(client_secret, password)
 
 del password
 
+_cache_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".cache")
+
 sp = spotipy.Spotify(auth_manager=spotipy.oauth2.SpotifyOAuth(client_id=client_id,
                                                               client_secret=client_secret,
                                                               redirect_uri="https://spotipy.egigoka.me",
+                                                              cache_handler=CacheFileHandler(cache_path=_cache_path),
                                                               scope="ugc-image-upload "
                                                                     "user-read-recently-played "
                                                                     "user-read-playback-position "
