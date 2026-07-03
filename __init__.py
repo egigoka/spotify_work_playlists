@@ -39,44 +39,81 @@ sp = spotipy.Spotify(auth_manager=spotipy.oauth2.SpotifyOAuth(client_id=client_i
 del client_id
 del client_secret
 
-# select playlist
-playlists = sp.current_user_playlists()
-selected_playlist = None
-for idx, playlist in enumerate(playlists['items']):
-    print(idx, playlist['name'])
-    if playlist['name'].lower() == "liked songs (public, managed)":
-        selected_playlist = playlist['uri']
-        Print.colored(f"selected {playlist['name']}", "green")
-        break
+def get_all_playlists():
+    results = sp.current_user_playlists(limit=50)
+    playlists = []
+    while results:
+        playlists += results['items']
+        results = sp.next(results) if results['next'] else None
+    return playlists
 
-if not selected_playlist:
-    selected_playlist = CLI.get_int("select album to add liked songs")
-    selected_playlist = playlists['items'][selected_playlist]['uri']
 
-cnt = 0
+def get_playlist(name, playlists):
+    for playlist in playlists:
+        if playlist['name'].lower() == name.lower():
+            Print.colored(f"selected {playlist['name']}", "green")
+            return playlist
+    return None
 
-while True:
-    # get 50 songs from selected playlist
-    results = sp.playlist_items(playlist_id=selected_playlist, offset=0)
 
-    cnt += len(results['items'])
-    Print.rewrite("removed", cnt, "songs")
-    if not results['items']:
-        break
-
+def get_playlist_track_uris(playlist_uri):
+    results = sp.playlist_items(playlist_id=playlist_uri, limit=100, offset=0)
     uris = []
-    for idx, item in enumerate(results['items']):
-        track = item['track']
-        cnt += 1
-        # print(idx + offset + 1, track['artists'][0]['name'], " – ", track['name'], track['uri'])
-        # Print.prettify(track)
-        uris.append(track['uri'])
+    while results:
+        for item in results['items']:
+            track = item['track']
+            if track:
+                uris.append(track['uri'])
+        results = sp.next(results) if results['next'] else None
+    return uris
 
-    # remove all songs from playlist
-    sp.playlist_remove_all_occurrences_of_items(selected_playlist, uris)
+
+def clear_playlist(playlist_uri):
+    cnt = 0
+    while True:
+        results = sp.playlist_items(playlist_id=playlist_uri, limit=100, offset=0)
+        if not results['items']:
+            break
+
+        uris = []
+        for item in results['items']:
+            track = item['track']
+            if track:
+                uris.append(track['uri'])
+
+        if uris:
+            sp.playlist_remove_all_occurrences_of_items(playlist_uri, uris)
+        cnt += len(results['items'])
+        Print.rewrite("removed", cnt, "songs")
+
+
+playlists = get_all_playlists()
+target_playlist = get_playlist("работа?", playlists)
+excluded_playlists = [
+    get_playlist("работа", playlists),
+    get_playlist("!работа", playlists),
+]
+
+if not target_playlist:
+    for idx, playlist in enumerate(playlists):
+        print(idx, playlist['name'])
+    target_playlist = CLI.get_int("select playlist to add filtered liked songs")
+    target_playlist = playlists[target_playlist]
+
+excluded_playlists = [playlist for playlist in excluded_playlists if playlist]
+selected_playlist = target_playlist['uri']
+
+excluded_track_uris = set()
+for playlist in excluded_playlists:
+    excluded_track_uris.update(get_playlist_track_uris(playlist['uri']))
+
+Print.colored(f"excluded {len(excluded_track_uris)} songs", "yellow")
+
+clear_playlist(selected_playlist)
 
 offset = 0
 cnt = 0
+added_cnt = 0
 
 while True:
     # get 50 songs from liked playlist
@@ -89,14 +126,14 @@ while True:
         cnt = idx + offset + 1
         # print(idx + offset + 1, track['artists'][0]['name'], " – ", track['name'], track['uri'])
         # Print.prettify(track)
-        uris.append(track['uri'])
+        if track['uri'] not in excluded_track_uris:
+            uris.append(track['uri'])
 
-    # remove songs if they in playlist
-    sp.playlist_remove_all_occurrences_of_items(selected_playlist, uris)
-
-    # add songs to playlist
-    sp.playlist_add_items(selected_playlist, uris, position=offset)
+    if uris:
+        # add songs to playlist in same order as liked songs
+        sp.playlist_add_items(selected_playlist, uris, position=added_cnt)
+        added_cnt += len(uris)
     Print.rewrite(f"processed {cnt} songs")
     offset += len(results['items'])
 
-print(f"processed {cnt} songs")
+print(f"processed {cnt} songs, added {added_cnt} songs")
