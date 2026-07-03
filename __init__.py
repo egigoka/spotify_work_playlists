@@ -112,8 +112,11 @@ excluded_playlists = [playlist for playlist in excluded_playlists if playlist]
 selected_playlist = target_playlist['uri']
 
 excluded_track_uris = set()
+excluded_counts = {}
 for playlist in excluded_playlists:
-    excluded_track_uris.update(get_playlist_track_uris(playlist['uri']))
+    uris = get_playlist_track_uris(playlist['uri'])
+    excluded_track_uris.update(uris)
+    excluded_counts[playlist['name']] = len(uris)
 Print.colored(f"excluded {len(excluded_track_uris)} songs from {len(excluded_playlists)} playlists", "yellow")
 
 Print.colored("fetching current playlist...", "cyan")
@@ -159,4 +162,9 @@ else:
     if batch:
         flush_batch(batch, batch_start_pos)
 
-    print(f"done: removed {len(to_remove)}, added {len(to_add_set)}, total {len(target_uris)} songs")
+    print(f"done: removed {len(to_remove)}, added {len(to_add_set)}")
+
+print(f"\nliked songs:      {len(liked_uris)}")
+for name, count in excluded_counts.items():
+    print(f"{name + ':':18s} {count}")
+print(f"{target_playlist['name'] + ':':18s} {len(target_uris)}")
