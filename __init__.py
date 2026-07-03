@@ -1,4 +1,5 @@
 import os
+import unicodedata
 import spotipy
 from spotipy.cache_handler import CacheFileHandler
 from commands import *
@@ -53,12 +54,19 @@ def get_all_playlists():
     return playlists
 
 
+def _norm(s):
+    return unicodedata.normalize('NFC', s.strip().lower())
+
+
 def get_playlist(name, playlists):
     for playlist in playlists:
-        if playlist['name'].lower() == name.lower():
+        if _norm(playlist['name']) == _norm(name):
             Print.colored(f"selected {playlist['name']}", "green")
             return playlist
     Print.colored(f"playlist not found: {repr(name)}", "red")
+    for playlist in playlists:
+        if name.lower() in playlist['name'].lower() or playlist['name'].lower() in name.lower():
+            print(f"  similar: {repr(playlist['name'])}")
     return None
 
 
