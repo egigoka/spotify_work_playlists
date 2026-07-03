@@ -4,46 +4,57 @@ import spotipy
 from spotipy.cache_handler import CacheFileHandler
 from commands import *
 
-password = Str.input_pass()
-
-client_id = [29, -23, -3, -21, -56, -9, -45, 1, 16, 67, -14, -16, -53, 26, -9, -59, -41, 51, 67, 18, 31, -21, -4,
-             -20, -62, -10, -44, 0, 16, 66, -18, 29]
-client_id = Str.decrypt(client_id, password)
-
-client_secret = [32, -19, -48, -15, -61, -51, 0, 3, 18, 21, -20, 28, -53, 30, -60, -55, 0, 49, 19, 16, -20, -14,
-                 -7, 31, -11, -7, -42, 3, 16, 22, -21, -19]
-client_secret = Str.decrypt(client_secret, password)
-
-del password
+scope = "ugc-image-upload " \
+        "user-read-recently-played " \
+        "user-read-playback-position " \
+        "user-top-read " \
+        "playlist-modify-private " \
+        "playlist-read-collaborative " \
+        "playlist-read-private " \
+        "playlist-modify-public " \
+        "streaming " \
+        "app-remote-control " \
+        "user-read-email " \
+        "user-read-private " \
+        "user-follow-read " \
+        "user-follow-modify " \
+        "user-library-modify " \
+        "user-library-read " \
+        "user-read-currently-playing " \
+        "user-read-playback-state " \
+        "user-modify-playback-state"
 
 _cache_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".cache")
+cache_handler = CacheFileHandler(cache_path=_cache_path)
+cached_token = cache_handler.get_cached_token()
 
-sp = spotipy.Spotify(auth_manager=spotipy.oauth2.SpotifyOAuth(client_id=client_id,
-                                                              client_secret=client_secret,
-                                                              redirect_uri="https://spotipy.egigoka.me",
-                                                              cache_handler=CacheFileHandler(cache_path=_cache_path),
-                                                              scope="ugc-image-upload "
-                                                                    "user-read-recently-played "
-                                                                    "user-read-playback-position "
-                                                                    "user-top-read "
-                                                                    "playlist-modify-private "
-                                                                    "playlist-read-collaborative "
-                                                                    "playlist-read-private "
-                                                                    "playlist-modify-public "
-                                                                    "streaming "
-                                                                    "app-remote-control "
-                                                                    "user-read-email "
-                                                                    "user-read-private "
-                                                                    "user-follow-read "
-                                                                    "user-follow-modify "
-                                                                    "user-library-modify "
-                                                                    "user-library-read "
-                                                                    "user-read-currently-playing "
-                                                                    "user-read-playback-state "
-                                                                    "user-modify-playback-state"))
+if cached_token and \
+        not spotipy.oauth2.SpotifyOAuth.is_token_expired(cached_token) and \
+        spotipy.oauth2.SpotifyOAuth._is_scope_subset(scope, cached_token.get('scope')):
+    sp = spotipy.Spotify(auth=cached_token['access_token'])
+else:
+    password = Str.input_pass()
 
-del client_id
-del client_secret
+    client_id = [29, -23, -3, -21, -56, -9, -45, 1, 16, 67, -14, -16, -53, 26, -9, -59, -41, 51, 67, 18, 31, -21, -4,
+                 -20, -62, -10, -44, 0, 16, 66, -18, 29]
+    client_id = Str.decrypt(client_id, password)
+
+    client_secret = [32, -19, -48, -15, -61, -51, 0, 3, 18, 21, -20, 28, -53, 30, -60, -55, 0, 49, 19, 16, -20, -14,
+                     -7, 31, -11, -7, -42, 3, 16, 22, -21, -19]
+    client_secret = Str.decrypt(client_secret, password)
+
+    del password
+
+    sp = spotipy.Spotify(auth_manager=spotipy.oauth2.SpotifyOAuth(client_id=client_id,
+                                                                  client_secret=client_secret,
+                                                                  redirect_uri="https://spotipy.egigoka.me",
+                                                                  cache_handler=cache_handler,
+                                                                  scope=scope))
+
+    del client_id
+    del client_secret
+
+del cached_token
 
 def get_all_playlists():
     results = sp.current_user_playlists(limit=50)
