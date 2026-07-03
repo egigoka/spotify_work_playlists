@@ -58,6 +58,7 @@ def get_playlist(name, playlists):
         if playlist['name'].lower() == name.lower():
             Print.colored(f"selected {playlist['name']}", "green")
             return playlist
+    Print.colored(f"playlist not found: {repr(name)}", "red")
     return None
 
 
